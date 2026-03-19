@@ -32,9 +32,9 @@ Utiliza `docker-compose.prod.yml` y `Dockerfile.prod`.
   - **Supervisor (`docker/prod/supervisord.conf`):** Se encarga de mantener siempre vivos tres procesos críticos:
     1. `php-fpm` (Procesador principal web)
     2. `queue:work` (Trabajador de colas asíncronas para disparar eventos WebSocket)
-    3. `reverb:start` (El servidor WebSocket en el puerto 8080)
+    3. `reverb:start` (El servidor WebSocket en el puerto 8013)
 
-> **Nota sobre el Proxy de Producción:** El contenedor contenedor de la aplicación no incluye Nginx. Está configurado para exponer el puerto HTTP/FPM en el puerto **9000** y los WebSockets en el **8080**. Se asume que en el servidor físico host existe un Proxy Inverso (Nginx, Traefik, Apache) que recibe el tráfico de los puertos 80/443 de Internet y lo redirige (Proxy Pass) a estos puertos del contenedor.
+> **Nota sobre el Proxy de Producción:** El contenedor contenedor de la aplicación no incluye Nginx. Está configurado para exponer el puerto HTTP/FPM en el puerto **9000** y los WebSockets en el **8013**. Se asume que en el servidor físico host existe un Proxy Inverso (Nginx, Traefik, Apache) que recibe el tráfico de los puertos 80/443 de Internet y lo redirige (Proxy Pass) a estos puertos del contenedor.
 
 ---
 
