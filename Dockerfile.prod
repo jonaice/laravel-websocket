@@ -1,0 +1,40 @@
+FROM php:8.4-fpm-alpine
+
+# Instalar dependencias esenciales, Supervisor, Node y PHP extensions
+RUN apk add --no-cache supervisor git unzip curl nodejs npm \
+    && docker-php-ext-install pdo_mysql pcntl
+
+# Copiar configuración de Supervisor
+COPY docker/prod/supervisord.conf /etc/supervisord.conf
+
+# Establecer directorio de trabajo
+WORKDIR /var/www/html
+
+# Instalar Composer
+COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
+
+# Copiar el proyecto completo
+COPY . .
+
+# Instalar dependencias de PHP para producción
+RUN composer install --optimize-autoloader --no-dev
+
+# Instalar Node modules y compilar los assets (Vite), luego limpiar para reducir el tamaño de la imagen
+RUN npm install \
+    && npm run build \
+    && rm -rf node_modules
+
+# Optimización extrema para Laravel
+RUN php artisan config:cache \
+    && php artisan route:cache \
+    && php artisan view:cache \
+    && php artisan event:cache
+
+# Configurar permisos para usuario de la web
+RUN chown -R www-data:www-data /var/www/html/storage /var/www/html/bootstrap/cache
+
+# Exponer el puerto de PHP-FPM (9000) y el de WebSockets Reverb (8080)
+EXPOSE 9000 8080
+
+# Iniciar Supervisor (que arranca FPM, Reverb y Worker al mismo tiempo)
+CMD ["/usr/bin/supervisord", "-c", "/etc/supervisord.conf"]

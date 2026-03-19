@@ -1,0 +1,44 @@
+services:
+    app:
+        build:
+            context: .
+            dockerfile: Dockerfile.prod
+        ports:
+            - '${APP_PORT:-9000}:9000'
+            - '${REVERB_SERVER_PORT:-8080}:8080'
+        environment:
+            APP_ENV: production
+            APP_DEBUG: 'false'
+        depends_on:
+            - mysql
+            - redis
+        networks:
+            - prod-network
+    mysql:
+        image: 'mysql:8.4'
+        environment:
+            MYSQL_ROOT_PASSWORD: '${DB_PASSWORD}'
+            MYSQL_DATABASE: '${DB_DATABASE}'
+            MYSQL_USER: '${DB_USERNAME}'
+            MYSQL_PASSWORD: '${DB_PASSWORD}'
+            MYSQL_ALLOW_EMPTY_PASSWORD: 'yes'
+        volumes:
+            - 'prod-mysql:/var/lib/mysql'
+        networks:
+            - prod-network
+    redis:
+        image: 'redis:alpine'
+        volumes:
+            - 'prod-redis:/data'
+        networks:
+            - prod-network
+
+networks:
+    prod-network:
+        driver: bridge
+
+volumes:
+    prod-mysql:
+        driver: local
+    prod-redis:
+        driver: local
