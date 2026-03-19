@@ -22,7 +22,7 @@ if [ "$1" == "dev" ]; then
     
     # Levantar contenedores de desarrollo en segundo plano
     ./vendor/bin/sail up -d
-    echo "🚀 Entorno de desarrollo iniciado. Recuerda correr './vendor/bin/sail npm run dev' en otra terminal para los assets."
+    echo " Entorno de desarrollo iniciado. Recuerda correr './vendor/bin/sail npm run dev' en otra terminal para los assets."
     
 elif [ "$1" == "prod" ]; then
     echo "🔴 Preparando entorno de PRODUCCIÓN..."
@@ -37,7 +37,7 @@ elif [ "$1" == "prod" ]; then
     
     # Construir imagen ligera de producción e iniciar
     docker compose -f docker-compose.prod.yml up -d --build
-    echo "🚀 Entorno de producción iniciado. Nginx, PHP-FPM, Colas y Reverb listos."
+    echo " Entorno de producción iniciado. Nginx, PHP-FPM, Colas y Reverb listos."
     
 else
     echo "❌ Opción inválida. El entorno debe ser 'dev' o 'prod'."
