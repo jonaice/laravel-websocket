@@ -1,58 +1,73 @@
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
+# Documentación del Proyecto: WebSockets con Laravel 13
 
-<p align="center">
-<a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
-</p>
+Este documento describe la arquitectura, la configuración de infraestructura y el flujo de trabajo para el desarrollo y despliegue del proyecto.
 
-## About Laravel
+##  Stack Tecnológico
+- **Framework Core:** Laravel 13 (PHP 8.4+)
+- **Base de Datos:** MySQL 8.4
+- **Caché y Colas:** Redis (imprescindible para el escalado de WebSockets)
+- **WebSockets:** Laravel Reverb (Servidor WebSocket nativo de Laravel)
+- **Infraestructura:** Docker (Entornos aislados para Desarrollo y Producción)
+- **Frontend Assets:** Vite + Vue/JS Vanilla (con Laravel Echo y Pusher-js)
 
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
+---
 
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
+##  Arquitectura de Docker (Desarrollo vs Producción)
 
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
+El proyecto está diseñado para tener una paridad estricta entre desarrollo y producción utilizando contenedores, pero optimizado para las necesidades de cada entorno. Para gestionar esto, usamos el script interactivo `./start.sh`.
 
-## Learning Laravel
+### Entorno de Desarrollo (`dev`)
+Utiliza **Laravel Sail** (`compose.yaml`).
+- **Propósito:** Levantar rápidamente el proyecto local y editar código en tiempo real (autorecarga, Xdebug, etc).
+- **Inicio:** `./start.sh dev` (Usa el archivo `.env.dev`).
+- **Servicios:** MySQL, Redis, y un contenedor robusto de PHP (`sail-8.5/app`).
 
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework.
+### Entorno de Producción (`prod`)
+Utiliza `docker-compose.prod.yml` y `Dockerfile.prod`.
+- **Propósito:** Ejecutar el código de manera optimizada, segura y rápida.
+- **Inicio:** `./start.sh prod` (Usa el archivo `.env.prod`).
+- **Servicios:**
+  - **MySQL & Redis:** Usan volúmenes persistentes (`prod-mysql` y `prod-redis`).
+  - **App (PHP-FPM + Supervisor):** La imagen de producción instala dependencias limpias (sin paquetes `--dev`), compila assets de Node, almacena la caché de rutas/vistas (`php artisan config:cache`), e inicia **Supervisor**.
+  - **Supervisor (`docker/prod/supervisord.conf`):** Se encarga de mantener siempre vivos tres procesos críticos:
+    1. `php-fpm` (Procesador principal web)
+    2. `queue:work` (Trabajador de colas asíncronas para disparar eventos WebSocket)
+    3. `reverb:start` (El servidor WebSocket en el puerto 8080)
 
-In addition, [Laracasts](https://laracasts.com) contains thousands of video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
+> **Nota sobre el Proxy de Producción:** El contenedor contenedor de la aplicación no incluye Nginx. Está configurado para exponer el puerto HTTP/FPM en el puerto **9000** y los WebSockets en el **8080**. Se asume que en el servidor físico host existe un Proxy Inverso (Nginx, Traefik, Apache) que recibe el tráfico de los puertos 80/443 de Internet y lo redirige (Proxy Pass) a estos puertos del contenedor.
 
-You can also watch bite-sized lessons with real-world projects on [Laravel Learn](https://laravel.com/learn), where you will be guided through building a Laravel application from scratch while learning PHP fundamentals.
+---
 
-## Agentic Development
+##  Flujo de Trabajo Común (Comandos Útiles)
 
-Laravel's predictable structure and conventions make it ideal for AI coding agents like Claude Code, Cursor, and GitHub Copilot. Install [Laravel Boost](https://laravel.com/docs/ai) to supercharge your AI workflow:
+Asegúrate de ejecutar estos comandos en la ruta raíz de este directorio.
 
+### 1. Iniciar o Cambiar Entornos
+Todo se maneja mediante el script principal:
 ```bash
-composer require laravel/boost --dev
-
-php artisan boost:install
+./start.sh dev   # Levanta entorno de Desarrollo
+./start.sh prod  # Levanta entorno de Producción
 ```
 
-Boost provides your agent 15+ tools and skills that help agents build Laravel applications while following best practices.
+### 2. Iniciar el Servidor de WebSockets (Desarrollo)
+En desarrollo, necesitas correr Reverb manualmente para ver el output de debug en otra terminal:
+```bash
+./vendor/bin/sail artisan reverb:start --debug
+```
+*(En Producción, Supervisor hace esto automáticamente de fondo y no te tienes que preocupar).*
 
-## Contributing
+### 3. Compilar los Assets Frontend
+Para compilar en tiempo real los cambios en tu JavaScript/CSS en desarrollo:
+```bash
+./vendor/bin/sail npm run dev
+```
 
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
+### 4. Interactuar con Artisan y Composer
+Ya que tu proyecto corre en Docker, no uses el `php` instalado en tu máquina. Usa siempre Sail:
+- **Crear un evento WebSocket:** `./vendor/bin/sail artisan make:event NuevoMensajeEvent`
+- **Instalar un paquete:** `./vendor/bin/sail composer require laravel/sanctum`
+- **Correr migraciones:** `./vendor/bin/sail artisan migrate`
 
-## Code of Conduct
+---
 
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
-
-## Security Vulnerabilities
-
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
-
-## License
-
-The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+>  Proyecto configurado, estructurado y listo para el desarrollo intensivo de WebSockets en Laravel 13.
